@@ -21,8 +21,14 @@ export interface CreateDbOptions {
   filename?: string;
   /** 初期化時にマイグレーションを適用するか (テスト/初回起動で true) */
   runMigrations?: boolean;
-  /** マイグレーションフォルダ (既定値: src/db/migrations) */
+  /** マイグレーションフォルダ (テスト向け。既定値: src/db/migrations) */
   migrationsFolder?: string;
+  /**
+   * マイグレーション SQL の埋め込み版 (serverless 向け)。
+   * これを指定すると migrationsFolder は無視され、sqlite.exec() で直接流す。
+   * 文字列は CREATE TABLE IF NOT EXISTS 等で冪等である前提。
+   */
+  embeddedMigrations?: string[];
 }
 
 /**
@@ -42,9 +48,15 @@ export function createDb(options: CreateDbOptions = {}): {
   const db = drizzle(sqlite, { schema });
 
   if (options.runMigrations) {
-    const folder =
-      options.migrationsFolder ?? path.resolve(__dirname, 'migrations');
-    migrate(db, { migrationsFolder: folder });
+    if (options.embeddedMigrations && options.embeddedMigrations.length > 0) {
+      for (const sql of options.embeddedMigrations) {
+        sqlite.exec(sql);
+      }
+    } else {
+      const folder =
+        options.migrationsFolder ?? path.resolve(__dirname, 'migrations');
+      migrate(db, { migrationsFolder: folder });
+    }
   }
 
   return {
