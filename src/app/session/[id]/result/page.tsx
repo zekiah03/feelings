@@ -1,12 +1,13 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
+import { ActionList } from '@/components/ActionList';
 import { EmotionRadarChart } from '@/components/EmotionRadarChart';
 import { EmotionScoreCard } from '@/components/EmotionScoreCard';
-import { Simulator } from '@/components/Simulator';
+import { SimulatorV2 } from '@/components/Simulator_v2';
 import { StyleBarChart } from '@/components/StyleBarChart';
 import { TimelineChart } from '@/components/TimelineChart';
-import { ALL_EMOTIONS, CORE_EMOTIONS, EXTENDED_EMOTIONS, type EnvironmentInput } from '@/engine';
+import { ALL_EMOTIONS, CORE_EMOTIONS, EXTENDED_EMOTIONS, recommend, type EnvironmentInput } from '@/engine';
 import { recordsToEnvironmentInput } from '@/repositories/interface';
 import { getDb } from '@/lib/db';
 import { getCurrentUserId } from '@/lib/currentUser';
@@ -36,6 +37,17 @@ export default function ResultPage({ params }: { params: { id: string } }) {
   }
 
   const { profile } = result;
+
+  // このセッションに対して既に保存済みの提案 (同一 actionText で一致判定)
+  const savedForSession = uow.repos.actions
+    .listByUser(userId)
+    .filter((a) => a.sessionId === params.id);
+  const recommendations = recommend(profile);
+  const savedMap: Record<string, string> = {};
+  for (const rec of recommendations) {
+    const match = savedForSession.find((a) => a.actionText === rec.text);
+    if (match) savedMap[rec.ruleId] = match.id;
+  }
 
   return (
     <div className="space-y-14">
@@ -114,13 +126,25 @@ export default function ResultPage({ params }: { params: { id: string } }) {
         </Section>
       )}
 
-      {/* Section 5: Simulator */}
+      {/* Section 5: Recommendations */}
+      <Section
+        title="あなたへの提案"
+        description="現在のスコアから自動抽出された行動案。気になるものだけ保存して /actions で管理できる。"
+      >
+        <ActionList
+          sessionId={params.id}
+          recommendations={recommendations}
+          savedMap={savedMap}
+        />
+      </Section>
+
+      {/* Section 6: Simulator v2 (順方向 + 逆算) */}
       {environmentInput && (
         <Section
           title="シミュレーター"
-          description="もしこの時期の環境が違っていたら？ スライダーを動かすとリアルタイムで結果が変化する (API は呼ばない)。"
+          description="順方向: 環境値を動かして結果を確認 / 逆算: 目標から最も効果的な介入を抽出。どちらも API は呼ばない。"
         >
-          <Simulator baseline={environmentInput} baselineProfile={profile} />
+          <SimulatorV2 baseline={environmentInput} baselineProfile={profile} />
         </Section>
       )}
     </div>

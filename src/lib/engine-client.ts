@@ -5,16 +5,31 @@
  * ここは 'use client' コードから import しやすいよう再エクスポートするだけ。
  */
 
-export { calculate, neutralInput, AGE_BRACKETS, CORE_EMOTIONS } from '@/engine';
+export {
+  calculate,
+  neutralInput,
+  AGE_BRACKETS,
+  CORE_EMOTIONS,
+  inverseInterventions,
+  VARIABLES,
+  recommend,
+} from '@/engine';
 export type {
   AgeBracket,
   AgeBracketInput,
   CoreEmotion,
   Emotion,
+  EmotionLayer,
   EmotionProfile,
   EmotionScore,
   EnvironmentInput,
   EventScores,
   FamilyScores,
   SchoolScores,
+  Intervention,
+  InverseGoal,
+  VariableMeta,
+  ActionRecommendation,
+  ActionCategory,
+  Difficulty,
 } from '@/engine';

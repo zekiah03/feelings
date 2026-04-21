@@ -7,6 +7,7 @@
  */
 
 import type { Db } from '../db/client';
+import { SqliteActionsRepository } from './actions';
 import { SqliteInputsRepository } from './inputs';
 import { SqliteResultsRepository } from './results';
 import { SqliteSessionsRepository } from './sessions';
@@ -17,6 +18,7 @@ function buildRepos(db: Db): Repositories {
     sessions: new SqliteSessionsRepository(db),
     inputs: new SqliteInputsRepository(db),
     results: new SqliteResultsRepository(db),
+    actions: new SqliteActionsRepository(db),
   };
 }
 

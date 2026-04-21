@@ -72,8 +72,31 @@ export const emotionResults = sqliteTable('emotion_results', {
   resultJson: text('result_json').notNull(), // EmotionProfile を JSON 化した文字列
 });
 
+// ===== saved_actions =====
+// ユーザーが「保存する」した行動提案。セッションをまたいで参照するため
+// user_id 単位で listing する (session_id は根拠のために保持)。
+export const savedActions = sqliteTable('saved_actions', {
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  sessionId: text('session_id')
+    .notNull()
+    .references(() => sessions.id, { onDelete: 'cascade' }),
+  actionText: text('action_text').notNull(),
+  category: text('category').notNull(), // '感情調整' | '環境設計' | '習慣'
+  status: text('status').notNull().default('saved'), // 'saved' | 'doing' | 'done'
+  createdAt: integer('created_at', { mode: 'timestamp_ms' })
+    .notNull()
+    .default(sql`(unixepoch() * 1000)`),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+    .notNull()
+    .default(sql`(unixepoch() * 1000)`),
+});
+
 // ===== 型エクスポート =====
 export type UserRow = typeof users.$inferSelect;
 export type SessionRow = typeof sessions.$inferSelect;
 export type EnvironmentInputRow = typeof environmentInputs.$inferSelect;
 export type EmotionResultRow = typeof emotionResults.$inferSelect;
+export type SavedActionRow = typeof savedActions.$inferSelect;

@@ -12,12 +12,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ja" className="dark">
       <body className="bg-ink-900 text-ink-100 font-sans antialiased min-h-screen">
         <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
-          <header className="mb-8 sm:mb-12">
+          <header className="mb-8 sm:mb-12 flex items-center justify-between gap-3">
             <a href="/" className="inline-flex items-center gap-2">
               <span className="inline-block h-2 w-2 rounded-full bg-emotion-fear" />
               <span className="text-sm tracking-widest text-ink-300 uppercase">
                 feelings
               </span>
+            </a>
+            <a
+              href="/actions"
+              className="text-xs tracking-widest text-ink-400 uppercase hover:text-ink-100 transition"
+            >
+              保存した提案
             </a>
           </header>
           <main>{children}</main>

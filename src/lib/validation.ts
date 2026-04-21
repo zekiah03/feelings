@@ -31,7 +31,22 @@ export const createSessionRequestSchema = z.object({
   label: z.string().min(1).max(200),
 });
 
+export const actionCategorySchema = z.enum(['感情調整', '環境設計', '習慣']);
+export const actionStatusSchema = z.enum(['saved', 'doing', 'done']);
+
+export const createActionRequestSchema = z.object({
+  sessionId: z.string().min(1),
+  actionText: z.string().min(1).max(500),
+  category: actionCategorySchema,
+});
+
+export const patchActionRequestSchema = z.object({
+  status: actionStatusSchema,
+});
+
 export type AgeRangeInput = z.infer<typeof ageRangeSchema>;
 export type InputData = z.infer<typeof inputDataSchema>;
 export type UpsertInputRequest = z.infer<typeof upsertInputRequestSchema>;
 export type CreateSessionRequest = z.infer<typeof createSessionRequestSchema>;
+export type CreateActionRequest = z.infer<typeof createActionRequestSchema>;
+export type PatchActionRequest = z.infer<typeof patchActionRequestSchema>;

@@ -12,6 +12,27 @@ export {
   FACTOR_RULES,
   THRESHOLDS,
 } from './weights';
+export { recommend } from './recommender';
+export type { ActionRecommendation, RecommendOptions } from './recommender';
+export {
+  ACTION_CATEGORIES,
+  ACTION_RULES,
+  DIFFICULTIES,
+} from './actionRules';
+export type {
+  ActionCategory,
+  ActionRule,
+  ActionRuleEvaluation,
+  Difficulty,
+} from './actionRules';
+export { inverseInterventions, VARIABLES } from './inverseCalculator';
+export type {
+  Intervention,
+  InverseGoal,
+  InverseOptions,
+  VariableCategory,
+  VariableMeta,
+} from './inverseCalculator';
 export type {
   AgeBracket,
   AgeBracketInput,

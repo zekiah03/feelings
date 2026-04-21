@@ -79,12 +79,45 @@ export interface ResultsRepository {
   getResultHistory(sessionId: string): EmotionResultRecord[];
 }
 
+// ===== 行動提案 (saved_actions) =====
+
+export type ActionStatus = 'saved' | 'doing' | 'done';
+
+export interface SavedAction {
+  id: string;
+  userId: string;
+  sessionId: string;
+  actionText: string;
+  category: string;
+  status: ActionStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateActionInput {
+  userId: string;
+  sessionId: string;
+  actionText: string;
+  category: string;
+}
+
+export interface ActionsRepository {
+  create(input: CreateActionInput): SavedAction;
+  getById(id: string): SavedAction | null;
+  listByUser(userId: string): SavedAction[];
+  /** 本人 (userId 一致) の行のみ更新。該当なしなら null を返す。 */
+  updateStatus(id: string, userId: string, status: ActionStatus): SavedAction | null;
+  /** 本人 (userId 一致) の行のみ削除。削除件数 > 0 で true。 */
+  delete(id: string, userId: string): boolean;
+}
+
 // ===== Unit of Work =====
 // 複数リポジトリ操作をトランザクション境界でまとめるための抽象。
 export interface Repositories {
   sessions: SessionsRepository;
   inputs: InputsRepository;
   results: ResultsRepository;
+  actions: ActionsRepository;
 }
 
 export interface UnitOfWork {
