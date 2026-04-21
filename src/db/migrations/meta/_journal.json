@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1776755066693,
+      "tag": "0000_slippery_slipstream",
+      "breakpoints": true
+    }
+  ]
+}
