@@ -5,3 +5,11 @@ coverage/
 .DS_Store
 .env
 .env.local
+
+# Next.js
+.next/
+out/
+*.tsbuildinfo
+
+# runtime data (SQLite)
+data/

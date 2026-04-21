@@ -4,7 +4,9 @@
   "private": true,
   "description": "生育環境 × 感情特性 分析エンジン",
   "scripts": {
-    "build": "tsc",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
     "test": "jest",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate"
@@ -13,13 +15,25 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/jest": "^29.5.12",
     "@types/node": "^20.11.30",
+    "@types/react": "^18.3.28",
+    "@types/react-dom": "^18.3.7",
+    "autoprefixer": "^10.5.0",
     "drizzle-kit": "^0.31.10",
     "jest": "^29.7.0",
+    "postcss": "^8.5.10",
+    "tailwindcss": "^3.4.19",
     "ts-jest": "^29.1.2",
     "typescript": "^5.4.3"
   },
   "dependencies": {
     "better-sqlite3": "^12.9.0",
-    "drizzle-orm": "^0.45.2"
+    "clsx": "^2.1.1",
+    "drizzle-orm": "^0.45.2",
+    "next": "^14.2.35",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^3.8.1",
+    "zod": "^4.3.6",
+    "zustand": "^5.0.12"
   }
 }

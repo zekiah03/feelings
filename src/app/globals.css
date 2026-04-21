@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: 'Inter', 'Hiragino Sans', system-ui, sans-serif;
+}
+
+html,
+body {
+  background: #0e0e14;
+  color: #e2e2e7;
+  min-height: 100vh;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* スライダーの細かい見た目調整 */
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+input[type='range']::-webkit-slider-runnable-track {
+  height: 4px;
+  background: #2a2a33;
+  border-radius: 9999px;
+}
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: #e2e2e7;
+  margin-top: -7px;
+  border: 2px solid #0e0e14;
+  cursor: pointer;
+}
+input[type='range']::-moz-range-track {
+  height: 4px;
+  background: #2a2a33;
+  border-radius: 9999px;
+}
+input[type='range']::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: #e2e2e7;
+  border: 2px solid #0e0e14;
+  cursor: pointer;
+}
