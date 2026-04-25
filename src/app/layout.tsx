@@ -14,7 +14,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
           <header className="mb-8 sm:mb-12 flex items-center justify-between gap-3">
             <a href="/" className="inline-flex items-center gap-2">
-              <span className="inline-block h-2 w-2 rounded-full bg-emotion-fear" />
+              <svg
+                viewBox="0 0 32 32"
+                className="h-4 w-4"
+                fill="none"
+                aria-hidden
+              >
+                <circle cx="16" cy="16" r="15" fill="#9B6FD4" opacity="0.18" />
+                <circle cx="16" cy="16" r="10" fill="#9B6FD4" opacity="0.4" />
+                <circle cx="16" cy="16" r="5" fill="#9B6FD4" />
+              </svg>
               <span className="text-sm tracking-widest text-ink-300 uppercase">
                 feelings
               </span>
