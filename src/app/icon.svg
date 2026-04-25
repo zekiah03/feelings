@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" role="img" aria-label="feelings">
+  <!-- duration (外層 / 持続) -->
+  <circle cx="16" cy="16" r="15" fill="#9B6FD4" opacity="0.12" />
+  <!-- sensitivity (中層 / 感度) -->
+  <circle cx="16" cy="16" r="10" fill="#9B6FD4" opacity="0.32" />
+  <!-- intensity (核 / 強度) -->
+  <circle cx="16" cy="16" r="5" fill="#9B6FD4" />
+</svg>
