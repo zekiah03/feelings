@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { getDb } from '@/lib/db';
+import { ensureMigrated, getDb } from '@/lib/db';
 import { getCurrentUserId } from '@/lib/currentUser';
 import { patchActionRequestSchema } from '@/lib/validation';
 
@@ -9,6 +9,7 @@ export const runtime = 'nodejs';
 type Ctx = { params: { id: string } };
 
 export async function PATCH(request: Request, { params }: Ctx) {
+  await ensureMigrated();
   const userId = getCurrentUserId();
   const body = await request.json().catch(() => null);
   const parsed = patchActionRequestSchema.safeParse(body);
@@ -19,7 +20,7 @@ export async function PATCH(request: Request, { params }: Ctx) {
     );
   }
 
-  const updated = getDb().uow.repos.actions.updateStatus(
+  const updated = await getDb().uow.repos.actions.updateStatus(
     params.id,
     userId,
     parsed.data.status
@@ -31,8 +32,9 @@ export async function PATCH(request: Request, { params }: Ctx) {
 }
 
 export async function DELETE(_req: Request, { params }: Ctx) {
+  await ensureMigrated();
   const userId = getCurrentUserId();
-  const ok = getDb().uow.repos.actions.delete(params.id, userId);
+  const ok = await getDb().uow.repos.actions.delete(params.id, userId);
   if (!ok) {
     return NextResponse.json({ error: 'Not found or forbidden' }, { status: 404 });
   }

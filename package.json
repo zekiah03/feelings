@@ -7,12 +7,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "jest",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
+    "@electric-sql/pglite": "^0.4.4",
     "@types/jest": "^29.5.12",
     "@types/node": "^20.11.30",
     "@types/react": "^18.3.28",
@@ -26,10 +26,10 @@
     "typescript": "^5.4.3"
   },
   "dependencies": {
-    "better-sqlite3": "^12.9.0",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
     "next": "^14.2.35",
+    "postgres": "^3.4.9",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "recharts": "^3.8.1",

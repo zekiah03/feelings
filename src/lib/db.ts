@@ -1,70 +1,66 @@
 /**
- * Next.js 用の DB シングルトン
+ * Next.js 用の DB シングルトン (Postgres / Supabase)
  *
- * HMR で複数インスタンスが作られないよう globalThis にキャッシュする。
+ * - HMR 対策で globalThis にキャッシュ
+ * - 起動時に 1 回だけ冪等マイグレーションを適用
+ * - DATABASE_URL は Vercel プロジェクト設定 (ローカルは .env.local)
  *
- * 環境別のファイル配置:
- *   - ローカル / 自前サーバ: data/feelings.db (gitignore 済み)
- *   - Vercel 等 serverless: /tmp/feelings.db (インスタンス毎に分離・エフェメラル)
- *   - DATABASE_URL が指定されていればそれを使う (ホストDBへの切替口)
- *
- * マイグレーションは起動時に SQL 埋め込み版 (embeddedMigrations) で適用する。
- * これにより src/db/migrations/ の配信可否に依存せず、どの環境でも初期化できる。
- *
- * ※ Vercel の /tmp は永続しないため、本番利用では Turso / Postgres 等の
- *    ホストDBへの移行が必須。
+ * Supabase 接続文字列の取り方:
+ *   Supabase dashboard → Project Settings → Database → Connection string
+ *   "Transaction pooler" (port 6543) を選ぶ。URL 末尾の {PASSWORD} を実際の値に差し替える。
  */
-
-import path from 'node:path';
-import fs from 'node:fs';
 
 import { createDb, type Db } from '../db/client';
 import { EMBEDDED_MIGRATIONS } from '../db/embeddedMigrations';
-import { SqliteUnitOfWork } from '../repositories/sqliteUnitOfWork';
-
-const IS_VERCEL = !!process.env.VERCEL;
-
-function resolveDbFile(): string {
-  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
-  if (IS_VERCEL) return '/tmp/feelings.db';
-  return path.resolve(process.cwd(), 'data', 'feelings.db');
-}
+import { PgUnitOfWork } from '../repositories/pgUnitOfWork';
 
 type Cached = {
   db: Db;
-  uow: SqliteUnitOfWork;
-  close: () => void;
+  uow: PgUnitOfWork;
+  close: () => Promise<void>;
 };
 
-const globalForDb = globalThis as unknown as { __feelingsDb?: Cached };
+const globalForDb = globalThis as unknown as {
+  __feelingsDb?: Cached;
+  __feelingsMigrationDone?: boolean;
+};
 
-function initialize(): Cached {
-  const file = resolveDbFile();
-  if (file !== ':memory:') {
-    const dir = path.dirname(file);
-    if (!fs.existsSync(dir)) {
-      try {
-        fs.mkdirSync(dir, { recursive: true });
-      } catch {
-        // /tmp のように既に存在する + 書き込み可能なディレクトリの場合や、
-        // 読み取り専用 FS の場合。作成に失敗しても file open 時に再度エラーになる。
-      }
-    }
+function requireDatabaseUrl(): string {
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    throw new Error(
+      'DATABASE_URL is not set. Configure it in Vercel (or .env.local) with the Supabase transaction pooler URL.'
+    );
   }
+  return url;
+}
 
-  const { db, close } = createDb({
-    filename: file,
-    runMigrations: true,
-    // 常に埋め込み SQL を使う (ファイル配信に依存しない)
-    embeddedMigrations: EMBEDDED_MIGRATIONS,
-  });
-  const uow = new SqliteUnitOfWork(db);
-  return { db, uow, close };
+async function applyMigrations(db: Db): Promise<void> {
+  // drizzle-orm/postgres-js では db.execute(sql.raw(...)) で生 SQL を流せる
+  const { sql } = await import('drizzle-orm');
+  for (const stmt of EMBEDDED_MIGRATIONS) {
+    await db.execute(sql.raw(stmt));
+  }
 }
 
 export function getDb(): Cached {
   if (!globalForDb.__feelingsDb) {
-    globalForDb.__feelingsDb = initialize();
+    const { db, close } = createDb({ url: requireDatabaseUrl() });
+    globalForDb.__feelingsDb = {
+      db,
+      uow: new PgUnitOfWork(db),
+      close,
+    };
   }
   return globalForDb.__feelingsDb;
+}
+
+/**
+ * マイグレーションを (プロセスで1回だけ) 適用する。
+ * API ルートや Server Component の先頭で await する想定。
+ */
+export async function ensureMigrated(): Promise<void> {
+  if (globalForDb.__feelingsMigrationDone) return;
+  await applyMigrations(getDb().db);
+  globalForDb.__feelingsMigrationDone = true;
 }

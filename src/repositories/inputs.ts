@@ -1,7 +1,7 @@
 /**
- * InputsRepository の SQLite 実装
+ * InputsRepository の Postgres 実装
  *
- * upsert は (session_id, age_range) の UNIQUE 制約にぶら下がる
+ * upsert は (session_id, age_range) のユニーク制約にぶら下がる
  * ON CONFLICT DO UPDATE で実装する。
  */
 
@@ -17,26 +17,18 @@ import type {
   InputsRepository,
 } from './interface';
 
-export class SqliteInputsRepository implements InputsRepository {
+export class PgInputsRepository implements InputsRepository {
   constructor(private readonly db: Db) {}
 
-  upsertInput(
+  async upsertInput(
     sessionId: string,
     ageRange: AgeRange,
     data: EnvironmentInputData
-  ): EnvironmentInputRecord {
-    const now = new Date();
+  ): Promise<EnvironmentInputRecord> {
     const id = randomUUID();
-
-    this.db
+    await this.db
       .insert(environmentInputs)
-      .values({
-        id,
-        sessionId,
-        ageRange,
-        ...data,
-        createdAt: now,
-      })
+      .values({ id, sessionId, ageRange, ...data })
       .onConflictDoUpdate({
         target: [environmentInputs.sessionId, environmentInputs.ageRange],
         set: {
@@ -48,14 +40,11 @@ export class SqliteInputsRepository implements InputsRepository {
           schoolSocialSuccess: data.schoolSocialSuccess,
           eventsStressCount: data.eventsStressCount,
           eventsSuccessCount: data.eventsSuccessCount,
-          // createdAt は保持しない。差し替え時刻を反映
-          createdAt: now,
+          createdAt: new Date(),
         },
-      })
-      .run();
+      });
 
-    // upsert 結果 (既存レコードなら id は変わらない) を取り直す
-    const row = this.db
+    const rows = await this.db
       .select()
       .from(environmentInputs)
       .where(
@@ -64,20 +53,19 @@ export class SqliteInputsRepository implements InputsRepository {
           eq(environmentInputs.ageRange, ageRange)
         )
       )
-      .get();
-    if (!row) {
+      .limit(1);
+    if (!rows[0]) {
       throw new Error('upsertInput: row unexpectedly not found after upsert');
     }
-    return rowToRecord(row);
+    return rowToRecord(rows[0]);
   }
 
-  getInputsBySession(sessionId: string): EnvironmentInputRecord[] {
-    const rows = this.db
+  async getInputsBySession(sessionId: string): Promise<EnvironmentInputRecord[]> {
+    const rows = await this.db
       .select()
       .from(environmentInputs)
       .where(eq(environmentInputs.sessionId, sessionId))
-      .orderBy(asc(environmentInputs.ageRange))
-      .all();
+      .orderBy(asc(environmentInputs.ageRange));
     return rows.map(rowToRecord);
   }
 }

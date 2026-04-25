@@ -1,28 +1,45 @@
 /**
- * テスト用ヘルパ: インメモリ DB を用意してマイグレーションを適用する。
+ * テスト用ヘルパ: pglite (インメモリ Postgres) を使い、毎回マイグレーションを適用した
+ * 空の DB を提供する。
  */
 
-import path from 'node:path';
-import type Database from 'better-sqlite3';
-import { createDb, type Db } from '../db/client';
-import { SqliteUnitOfWork } from '../repositories/sqliteUnitOfWork';
+import { PGlite } from '@electric-sql/pglite';
+import { drizzle, type PgliteDatabase } from 'drizzle-orm/pglite';
+import { sql } from 'drizzle-orm';
+
+import * as schema from '../db/schema';
+import { EMBEDDED_MIGRATIONS } from '../db/embeddedMigrations';
+import { PgUnitOfWork } from '../repositories/pgUnitOfWork';
+import type { Db } from '../db/client';
 import type { EnvironmentInputData } from '../repositories/interface';
 
-const MIGRATIONS_FOLDER = path.resolve(__dirname, '..', 'db', 'migrations');
-
-export function setupInMemoryDb(): {
+export interface TestEnv {
   db: Db;
-  sqlite: Database.Database;
-  close: () => void;
-  uow: SqliteUnitOfWork;
-} {
-  const { db, sqlite, close } = createDb({
-    filename: ':memory:',
-    runMigrations: true,
-    migrationsFolder: MIGRATIONS_FOLDER,
-  });
-  const uow = new SqliteUnitOfWork(db);
-  return { db, sqlite, close, uow };
+  pglite: PGlite;
+  close: () => Promise<void>;
+  uow: PgUnitOfWork;
+}
+
+export async function setupInMemoryDb(): Promise<TestEnv> {
+  const pglite = new PGlite();
+  // drizzle-orm/pglite の返り値の型は Db (PostgresJsDatabase) とは別物だが、
+  // 実行時 API は互換なのでリポジトリ実装はそのまま動く。
+  const pgliteDb = drizzle(pglite, { schema }) as unknown as PgliteDatabase<typeof schema>;
+  const db = pgliteDb as unknown as Db;
+
+  for (const stmt of EMBEDDED_MIGRATIONS) {
+    await db.execute(sql.raw(stmt));
+  }
+
+  const uow = new PgUnitOfWork(db);
+  return {
+    db,
+    pglite,
+    uow,
+    close: async () => {
+      await pglite.close();
+    },
+  };
 }
 
 export function sampleData(overrides: Partial<EnvironmentInputData> = {}): EnvironmentInputData {

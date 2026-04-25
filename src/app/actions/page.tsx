@@ -1,16 +1,16 @@
-import Link from 'next/link';
-
 import { SavedActionRow } from '@/components/SavedActionRow';
 import { ACTION_CATEGORIES, type ActionCategory } from '@/engine';
 import { getCurrentUserId } from '@/lib/currentUser';
-import { getDb } from '@/lib/db';
+import { ensureMigrated, getDb } from '@/lib/db';
 import type { SavedAction } from '@/repositories/interface';
+import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
-export default function SavedActionsPage() {
+export default async function SavedActionsPage() {
+  await ensureMigrated();
   const userId = getCurrentUserId();
-  const actions = getDb().uow.repos.actions.listByUser(userId);
+  const actions = await getDb().uow.repos.actions.listByUser(userId);
 
   const statusGroups = {
     saved: actions.filter((a) => a.status === 'saved'),
@@ -50,13 +50,7 @@ export default function SavedActionsPage() {
   );
 }
 
-function GroupSection({
-  title,
-  items,
-}: {
-  title: string;
-  items: SavedAction[];
-}) {
+function GroupSection({ title, items }: { title: string; items: SavedAction[] }) {
   if (items.length === 0) return null;
   return (
     <section className="space-y-3">

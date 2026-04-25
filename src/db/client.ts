@@ -1,67 +1,42 @@
 /**
- * Drizzle + better-sqlite3 クライアント初期化
+ * Drizzle + postgres-js クライアント (Supabase 対応)
  *
- * - 本番/開発: ファイルパス指定で永続DB
- * - テスト: ':memory:' でインメモリDB
+ * Supabase の transaction pooler (6543) 経由で接続する場合、
+ * prepared statement は使えないため `prepare: false` が必須。
+ * サーバレス環境では接続を最小にするため `max: 1`。
  *
- * migrate() は drizzle-kit 生成のマイグレーションを適用する。
+ * テスト時は pglite (インメモリ Postgres) を直接 drizzle ラップして使う。
+ * 本ファイルは「本番向け = postgres-js」のみを扱う。
  */
 
-import Database from 'better-sqlite3';
-import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
-import path from 'node:path';
+import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
 
 import * as schema from './schema';
 
-export type Db = BetterSQLite3Database<typeof schema>;
+export type Db = PostgresJsDatabase<typeof schema>;
 
 export interface CreateDbOptions {
-  /** SQLite ファイルパス or ':memory:' */
-  filename?: string;
-  /** 初期化時にマイグレーションを適用するか (テスト/初回起動で true) */
-  runMigrations?: boolean;
-  /** マイグレーションフォルダ (テスト向け。既定値: src/db/migrations) */
-  migrationsFolder?: string;
-  /**
-   * マイグレーション SQL の埋め込み版 (serverless 向け)。
-   * これを指定すると migrationsFolder は無視され、sqlite.exec() で直接流す。
-   * 文字列は CREATE TABLE IF NOT EXISTS 等で冪等である前提。
-   */
-  embeddedMigrations?: string[];
+  /** Postgres 接続 URL (Supabase pooled, port 6543 推奨) */
+  url: string;
+  /** 追加の postgres-js オプション */
+  postgresOptions?: Record<string, unknown>;
 }
 
-/**
- * DB クライアントを生成する。
- * 呼び出し側が close() できるよう、sqlite ハンドルも一緒に返す。
- */
-export function createDb(options: CreateDbOptions = {}): {
+export function createDb(options: CreateDbOptions): {
   db: Db;
-  sqlite: Database.Database;
-  close: () => void;
+  close: () => Promise<void>;
 } {
-  const filename = options.filename ?? ':memory:';
-  const sqlite = new Database(filename);
-  // 外部キー制約を有効化 (SQLite のデフォルトは OFF)
-  sqlite.pragma('foreign_keys = ON');
-
-  const db = drizzle(sqlite, { schema });
-
-  if (options.runMigrations) {
-    if (options.embeddedMigrations && options.embeddedMigrations.length > 0) {
-      for (const sql of options.embeddedMigrations) {
-        sqlite.exec(sql);
-      }
-    } else {
-      const folder =
-        options.migrationsFolder ?? path.resolve(__dirname, 'migrations');
-      migrate(db, { migrationsFolder: folder });
-    }
-  }
-
+  const client = postgres(options.url, {
+    prepare: false, // Supabase transaction pooler 対応
+    max: 1, // サーバレス向け最小接続
+    ...(options.postgresOptions ?? {}),
+  });
+  const db = drizzle(client, { schema });
   return {
     db,
-    sqlite,
-    close: () => sqlite.close(),
+    close: async () => {
+      await client.end({ timeout: 5 });
+    },
   };
 }

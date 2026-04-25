@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 
-import { getDb } from '@/lib/db';
+import { ensureMigrated, getDb } from '@/lib/db';
 import { getCurrentUserId } from '@/lib/currentUser';
 import { createActionRequestSchema } from '@/lib/validation';
 
 export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
+  await ensureMigrated();
   const userId = getCurrentUserId();
   const body = await request.json().catch(() => null);
   const parsed = createActionRequestSchema.safeParse(body);
@@ -18,9 +19,7 @@ export async function POST(request: Request) {
   }
 
   const { uow } = getDb();
-
-  // セッション所有者チェック
-  const session = uow.repos.sessions.getSession(parsed.data.sessionId);
+  const session = await uow.repos.sessions.getSession(parsed.data.sessionId);
   if (!session) {
     return NextResponse.json({ error: 'Session not found' }, { status: 404 });
   }
@@ -28,7 +27,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const saved = uow.repos.actions.create({
+  const saved = await uow.repos.actions.create({
     userId,
     sessionId: parsed.data.sessionId,
     actionText: parsed.data.actionText,
@@ -38,7 +37,8 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
+  await ensureMigrated();
   const userId = getCurrentUserId();
-  const actions = getDb().uow.repos.actions.listByUser(userId);
+  const actions = await getDb().uow.repos.actions.listByUser(userId);
   return NextResponse.json({ actions });
 }

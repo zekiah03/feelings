@@ -1,6 +1,6 @@
 import { EMOTION_BASELINE } from '../engine';
 import { saveAndCalculate, type BracketInputs } from '../services/analyzeService';
-import { sampleData, setupInMemoryDb } from './_helpers';
+import { sampleData, setupInMemoryDb, type TestEnv } from './_helpers';
 import type { AgeRange } from '../repositories/interface';
 
 function allNeutral(): BracketInputs {
@@ -13,95 +13,88 @@ function allNeutral(): BracketInputs {
 }
 
 describe('saveAndCalculate (integration)', () => {
-  let env: ReturnType<typeof setupInMemoryDb>;
+  let env: TestEnv;
 
-  beforeEach(() => {
-    env = setupInMemoryDb();
+  beforeEach(async () => {
+    env = await setupInMemoryDb();
   });
 
-  afterEach(() => {
-    env.close();
+  afterEach(async () => {
+    await env.close();
   });
 
-  test('入力保存 → 計算 → 結果保存を1トランザクションで完了する', () => {
-    const session = env.uow.repos.sessions.createSession('user-1', 'trial');
+  test('入力保存 → 計算 → 結果保存を1トランザクションで完了する', async () => {
+    const session = await env.uow.repos.sessions.createSession('user-1', 'trial');
     const inputs = allNeutral();
-    // 0-5 で愛情を極端に下げる → fear 上昇が期待される
     inputs['0-5'] = sampleData({ familyAffection: 0 });
 
-    const { inputs: saved, result, profile } = saveAndCalculate(
+    const { inputs: saved, result, profile } = await saveAndCalculate(
       env.uow,
       session.id,
       inputs
     );
 
-    // 入力は4区分分保存されている
     expect(saved).toHaveLength(4);
     const ranges = saved.map((s) => s.ageRange).sort() as AgeRange[];
     expect(ranges).toEqual(['0-5', '11-15', '16-20', '6-10'].sort());
 
-    // fear intensity がベースラインを超えている
     expect(profile.emotions.fear.intensity).toBeGreaterThan(
       EMOTION_BASELINE.intensity
     );
 
-    // 結果が永続化されている
-    const latest = env.uow.repos.results.getLatestResult(session.id);
+    const latest = await env.uow.repos.results.getLatestResult(session.id);
     expect(latest?.id).toBe(result.id);
     expect(latest?.profile).toEqual(profile);
   });
 
-  test('2回呼び出すと入力は upsert され (件数は4のまま)、結果は履歴に増える', () => {
-    const session = env.uow.repos.sessions.createSession('user-1', 'trial');
+  test('2回呼び出すと入力は upsert され、結果は履歴に増える', async () => {
+    const session = await env.uow.repos.sessions.createSession('user-1', 'trial');
 
-    saveAndCalculate(env.uow, session.id, allNeutral());
-    // タイムスタンプが被らないよう微待機
-    const start = Date.now();
-    while (Date.now() === start) {
-      /* spin */
-    }
+    await saveAndCalculate(env.uow, session.id, allNeutral());
+    await new Promise((r) => setTimeout(r, 5));
     const modified = allNeutral();
     modified['11-15'] = sampleData({ eventsStressCount: 10 });
-    saveAndCalculate(env.uow, session.id, modified);
+    await saveAndCalculate(env.uow, session.id, modified);
 
-    const allInputs = env.uow.repos.inputs.getInputsBySession(session.id);
+    const allInputs = await env.uow.repos.inputs.getInputsBySession(session.id);
     expect(allInputs).toHaveLength(4);
 
-    const history = env.uow.repos.results.getResultHistory(session.id);
+    const history = await env.uow.repos.results.getResultHistory(session.id);
     expect(history).toHaveLength(2);
   });
 
-  test('存在しないセッションIDではロールバックされ、何も書き込まれない', () => {
-    expect(() =>
-      saveAndCalculate(env.uow, 'non-existent-session', allNeutral())
-    ).toThrow(/Session not found/);
+  test('存在しないセッションIDではロールバックされ、何も書き込まれない', async () => {
+    await expect(
+      saveAndCalculate(env.uow, '00000000-0000-0000-0000-000000000000', allNeutral())
+    ).rejects.toThrow(/Session not found/);
 
-    const results = env.uow.repos.results.getResultHistory('non-existent-session');
-    const inputs = env.uow.repos.inputs.getInputsBySession('non-existent-session');
+    const results = await env.uow.repos.results.getResultHistory(
+      '00000000-0000-0000-0000-000000000000'
+    );
+    const inputs = await env.uow.repos.inputs.getInputsBySession(
+      '00000000-0000-0000-0000-000000000000'
+    );
     expect(results).toHaveLength(0);
     expect(inputs).toHaveLength(0);
   });
 
-  test('途中で throw するとトランザクションがロールバックされ入力も保存されない', () => {
-    const session = env.uow.repos.sessions.createSession('user-1', 'rollback-test');
+  test('途中で throw するとトランザクションがロールバックされ入力も保存されない', async () => {
+    const session = await env.uow.repos.sessions.createSession('user-1', 'rollback-test');
 
-    // 1件だけ事前に入れておき、既存値を覚える
-    const existing = env.uow.repos.inputs.upsertInput(
+    const existing = await env.uow.repos.inputs.upsertInput(
       session.id,
       '0-5',
       sampleData({ familyAffection: 42 })
     );
 
-    // withTransaction を直接呼び、途中で明示的に throw させる
-    expect(() =>
-      env.uow.withTransaction((repos) => {
-        repos.inputs.upsertInput(session.id, '0-5', sampleData({ familyAffection: 99 }));
+    await expect(
+      env.uow.withTransaction(async (repos) => {
+        await repos.inputs.upsertInput(session.id, '0-5', sampleData({ familyAffection: 99 }));
         throw new Error('boom');
       })
-    ).toThrow('boom');
+    ).rejects.toThrow('boom');
 
-    // 既存値が保持されている (99 に上書きされていない)
-    const after = env.uow.repos.inputs.getInputsBySession(session.id);
+    const after = await env.uow.repos.inputs.getInputsBySession(session.id);
     expect(after).toHaveLength(1);
     expect(after[0].id).toBe(existing.id);
     expect(after[0].familyAffection).toBe(42);

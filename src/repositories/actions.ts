@@ -1,5 +1,5 @@
 /**
- * ActionsRepository の SQLite 実装
+ * ActionsRepository の Postgres 実装
  */
 
 import { randomUUID } from 'node:crypto';
@@ -14,62 +14,61 @@ import type {
   SavedAction,
 } from './interface';
 
-export class SqliteActionsRepository implements ActionsRepository {
+export class PgActionsRepository implements ActionsRepository {
   constructor(private readonly db: Db) {}
 
-  create(input: CreateActionInput): SavedAction {
-    const now = new Date();
-    const row: SavedActionRow = {
-      id: randomUUID(),
-      userId: input.userId,
-      sessionId: input.sessionId,
-      actionText: input.actionText,
-      category: input.category,
-      status: 'saved',
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.db.insert(savedActions).values(row).run();
+  async create(input: CreateActionInput): Promise<SavedAction> {
+    const id = randomUUID();
+    const [row] = await this.db
+      .insert(savedActions)
+      .values({
+        id,
+        userId: input.userId,
+        sessionId: input.sessionId,
+        actionText: input.actionText,
+        category: input.category,
+      })
+      .returning();
     return rowToAction(row);
   }
 
-  getById(id: string): SavedAction | null {
-    const row = this.db.select().from(savedActions).where(eq(savedActions.id, id)).get();
-    return row ? rowToAction(row) : null;
+  async getById(id: string): Promise<SavedAction | null> {
+    const rows = await this.db
+      .select()
+      .from(savedActions)
+      .where(eq(savedActions.id, id))
+      .limit(1);
+    return rows[0] ? rowToAction(rows[0]) : null;
   }
 
-  listByUser(userId: string): SavedAction[] {
-    const rows = this.db
+  async listByUser(userId: string): Promise<SavedAction[]> {
+    const rows = await this.db
       .select()
       .from(savedActions)
       .where(eq(savedActions.userId, userId))
-      .orderBy(desc(savedActions.createdAt))
-      .all();
+      .orderBy(desc(savedActions.createdAt));
     return rows.map(rowToAction);
   }
 
-  updateStatus(id: string, userId: string, status: ActionStatus): SavedAction | null {
-    const existing = this.db
-      .select()
-      .from(savedActions)
-      .where(and(eq(savedActions.id, id), eq(savedActions.userId, userId)))
-      .get();
-    if (!existing) return null;
-    const updatedAt = new Date();
-    this.db
+  async updateStatus(
+    id: string,
+    userId: string,
+    status: ActionStatus
+  ): Promise<SavedAction | null> {
+    const rows = await this.db
       .update(savedActions)
-      .set({ status, updatedAt })
-      .where(eq(savedActions.id, id))
-      .run();
-    return rowToAction({ ...existing, status, updatedAt });
+      .set({ status, updatedAt: new Date() })
+      .where(and(eq(savedActions.id, id), eq(savedActions.userId, userId)))
+      .returning();
+    return rows[0] ? rowToAction(rows[0]) : null;
   }
 
-  delete(id: string, userId: string): boolean {
-    const res = this.db
+  async delete(id: string, userId: string): Promise<boolean> {
+    const rows = await this.db
       .delete(savedActions)
       .where(and(eq(savedActions.id, id), eq(savedActions.userId, userId)))
-      .run();
-    return res.changes > 0;
+      .returning({ id: savedActions.id });
+    return rows.length > 0;
   }
 }
 

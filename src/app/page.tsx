@@ -1,14 +1,15 @@
 import Link from 'next/link';
 
-import { getDb } from '@/lib/db';
+import { ensureMigrated, getDb } from '@/lib/db';
 import { getCurrentUserId } from '@/lib/currentUser';
 import { StartSessionButton } from '@/components/StartSessionButton';
 
 export const dynamic = 'force-dynamic';
 
-export default function HomePage() {
+export default async function HomePage() {
+  await ensureMigrated();
   const userId = getCurrentUserId();
-  const sessions = getDb().uow.repos.sessions.listSessions(userId);
+  const sessions = await getDb().uow.repos.sessions.listSessions(userId);
 
   return (
     <div className="space-y-12">

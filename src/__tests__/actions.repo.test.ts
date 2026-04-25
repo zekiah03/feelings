@@ -1,21 +1,21 @@
-import { setupInMemoryDb } from './_helpers';
+import { setupInMemoryDb, type TestEnv } from './_helpers';
 
-describe('SqliteActionsRepository', () => {
-  let env: ReturnType<typeof setupInMemoryDb>;
+describe('PgActionsRepository', () => {
+  let env: TestEnv;
   let sessionId: string;
   const userId = 'user-1';
 
-  beforeEach(() => {
-    env = setupInMemoryDb();
-    sessionId = env.uow.repos.sessions.createSession(userId, 'test').id;
+  beforeEach(async () => {
+    env = await setupInMemoryDb();
+    sessionId = (await env.uow.repos.sessions.createSession(userId, 'test')).id;
   });
 
-  afterEach(() => {
-    env.close();
+  afterEach(async () => {
+    await env.close();
   });
 
-  test('create() は保存して status="saved" の SavedAction を返す', () => {
-    const saved = env.uow.repos.actions.create({
+  test('create() は保存して status="saved" の SavedAction を返す', async () => {
+    const saved = await env.uow.repos.actions.create({
       userId,
       sessionId,
       actionText: '有酸素運動を週3回',
@@ -28,89 +28,81 @@ describe('SqliteActionsRepository', () => {
     expect(saved.createdAt).toBeInstanceOf(Date);
   });
 
-  test('listByUser() は降順 (新しい順) で該当ユーザー分だけを返す', () => {
-    env.uow.repos.actions.create({
+  test('listByUser() は降順 (新しい順) で該当ユーザー分だけを返す', async () => {
+    await env.uow.repos.actions.create({
       userId,
       sessionId,
       actionText: 'A',
       category: '感情調整',
     });
-    const start = Date.now();
-    while (Date.now() === start) {
-      /* spin */
-    }
-    env.uow.repos.actions.create({
+    await new Promise((r) => setTimeout(r, 5));
+    await env.uow.repos.actions.create({
       userId,
       sessionId,
       actionText: 'B',
       category: '習慣',
     });
-    // 別ユーザーの行動
-    const otherSid = env.uow.repos.sessions.createSession('other-user', 'x').id;
-    env.uow.repos.actions.create({
+    const otherSid = (await env.uow.repos.sessions.createSession('other-user', 'x')).id;
+    await env.uow.repos.actions.create({
       userId: 'other-user',
       sessionId: otherSid,
       actionText: 'X',
       category: '環境設計',
     });
 
-    const mine = env.uow.repos.actions.listByUser(userId);
+    const mine = await env.uow.repos.actions.listByUser(userId);
     expect(mine.map((a) => a.actionText)).toEqual(['B', 'A']);
   });
 
-  test('updateStatus() はステータスを更新し、updatedAt を進める', () => {
-    const saved = env.uow.repos.actions.create({
+  test('updateStatus() はステータスを更新し、updatedAt を進める', async () => {
+    const saved = await env.uow.repos.actions.create({
       userId,
       sessionId,
       actionText: 'A',
       category: '習慣',
     });
-    const start = Date.now();
-    while (Date.now() === start) {
-      /* spin */
-    }
-    const updated = env.uow.repos.actions.updateStatus(saved.id, userId, 'doing');
+    await new Promise((r) => setTimeout(r, 5));
+    const updated = await env.uow.repos.actions.updateStatus(saved.id, userId, 'doing');
     expect(updated).not.toBeNull();
     expect(updated!.status).toBe('doing');
     expect(updated!.updatedAt.getTime()).toBeGreaterThan(saved.updatedAt.getTime());
   });
 
-  test('updateStatus() は他ユーザーでは更新できず null を返す', () => {
-    const saved = env.uow.repos.actions.create({
+  test('updateStatus() は他ユーザーでは更新できず null を返す', async () => {
+    const saved = await env.uow.repos.actions.create({
       userId,
       sessionId,
       actionText: 'A',
       category: '習慣',
     });
-    const result = env.uow.repos.actions.updateStatus(saved.id, 'other', 'done');
+    const result = await env.uow.repos.actions.updateStatus(saved.id, 'other', 'done');
     expect(result).toBeNull();
 
-    // 元のステータスが変わっていないこと
-    const refetched = env.uow.repos.actions.getById(saved.id);
+    const refetched = await env.uow.repos.actions.getById(saved.id);
     expect(refetched?.status).toBe('saved');
   });
 
-  test('delete() は本人のみ削除でき、他ユーザーでは false を返す', () => {
-    const saved = env.uow.repos.actions.create({
+  test('delete() は本人のみ削除でき、他ユーザーでは false を返す', async () => {
+    const saved = await env.uow.repos.actions.create({
       userId,
       sessionId,
       actionText: 'A',
       category: '感情調整',
     });
-    expect(env.uow.repos.actions.delete(saved.id, 'other')).toBe(false);
-    expect(env.uow.repos.actions.getById(saved.id)).not.toBeNull();
-    expect(env.uow.repos.actions.delete(saved.id, userId)).toBe(true);
-    expect(env.uow.repos.actions.getById(saved.id)).toBeNull();
+    expect(await env.uow.repos.actions.delete(saved.id, 'other')).toBe(false);
+    expect(await env.uow.repos.actions.getById(saved.id)).not.toBeNull();
+    expect(await env.uow.repos.actions.delete(saved.id, userId)).toBe(true);
+    expect(await env.uow.repos.actions.getById(saved.id)).toBeNull();
   });
 
-  test('セッション削除で cascade 削除される', () => {
-    const saved = env.uow.repos.actions.create({
+  test('セッション削除で cascade 削除される', async () => {
+    const saved = await env.uow.repos.actions.create({
       userId,
       sessionId,
       actionText: 'A',
       category: '感情調整',
     });
-    env.sqlite.prepare('DELETE FROM sessions WHERE id = ?').run(sessionId);
-    expect(env.uow.repos.actions.getById(saved.id)).toBeNull();
+    await env.pglite.exec(`DELETE FROM sessions WHERE id = '${sessionId}'`);
+    expect(await env.uow.repos.actions.getById(saved.id)).toBeNull();
   });
 });

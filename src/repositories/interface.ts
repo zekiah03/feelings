@@ -1,16 +1,14 @@
 /**
- * リポジトリ層のインターフェース定義
+ * リポジトリ層のインターフェース定義 (async / Postgres 前提)
  *
- * 同期 API に統一する。理由: better-sqlite3 のトランザクションは同期
- * であり、async 関数内の例外は Promise rejection となるため、Drizzle が
- * ロールバックを検知できなくなる。将来 Postgres 等に移行する場合は
- * Promise 化する機械的リファクタが必要になるが、Phase 2 ではこの方針で
- * 正しいトランザクション境界を担保する。
+ * postgres-js のトランザクションは Promise ベースで、async 関数内の
+ * reject も正しくロールバックされる。Phase 2 で sync に倒した判断は
+ * Postgres 移行で巻き戻しが必要だったため、ここで async 化している。
  */
 
 import type { EmotionProfile, EnvironmentInput } from '../engine';
 
-// ===== ドメインモデル (DBスキーマとは疎結合にする) =====
+// ===== ドメインモデル =====
 
 export interface Session {
   id: string;
@@ -36,7 +34,6 @@ export interface EnvironmentInputRecord {
   createdAt: Date;
 }
 
-/** upsert 時の入力データ (id/createdAtは実装側で発行) */
 export interface EnvironmentInputData {
   familyAffection: number;
   familyStability: number;
@@ -52,16 +49,15 @@ export interface EmotionResultRecord {
   id: string;
   sessionId: string;
   calculatedAt: Date;
-  /** 保存時は JSON 文字列。利用側は profile で直接取得可 */
   profile: EmotionProfile;
 }
 
-// ===== リポジトリインターフェース =====
+// ===== リポジトリインターフェース (async) =====
 
 export interface SessionsRepository {
-  createSession(userId: string, label: string): Session;
-  getSession(sessionId: string): Session | null;
-  listSessions(userId: string): Session[];
+  createSession(userId: string, label: string): Promise<Session>;
+  getSession(sessionId: string): Promise<Session | null>;
+  listSessions(userId: string): Promise<Session[]>;
 }
 
 export interface InputsRepository {
@@ -69,17 +65,17 @@ export interface InputsRepository {
     sessionId: string,
     ageRange: AgeRange,
     data: EnvironmentInputData
-  ): EnvironmentInputRecord;
-  getInputsBySession(sessionId: string): EnvironmentInputRecord[];
+  ): Promise<EnvironmentInputRecord>;
+  getInputsBySession(sessionId: string): Promise<EnvironmentInputRecord[]>;
 }
 
 export interface ResultsRepository {
-  saveResult(sessionId: string, profile: EmotionProfile): EmotionResultRecord;
-  getLatestResult(sessionId: string): EmotionResultRecord | null;
-  getResultHistory(sessionId: string): EmotionResultRecord[];
+  saveResult(sessionId: string, profile: EmotionProfile): Promise<EmotionResultRecord>;
+  getLatestResult(sessionId: string): Promise<EmotionResultRecord | null>;
+  getResultHistory(sessionId: string): Promise<EmotionResultRecord[]>;
 }
 
-// ===== 行動提案 (saved_actions) =====
+// ===== 行動提案 =====
 
 export type ActionStatus = 'saved' | 'doing' | 'done';
 
@@ -102,17 +98,18 @@ export interface CreateActionInput {
 }
 
 export interface ActionsRepository {
-  create(input: CreateActionInput): SavedAction;
-  getById(id: string): SavedAction | null;
-  listByUser(userId: string): SavedAction[];
-  /** 本人 (userId 一致) の行のみ更新。該当なしなら null を返す。 */
-  updateStatus(id: string, userId: string, status: ActionStatus): SavedAction | null;
-  /** 本人 (userId 一致) の行のみ削除。削除件数 > 0 で true。 */
-  delete(id: string, userId: string): boolean;
+  create(input: CreateActionInput): Promise<SavedAction>;
+  getById(id: string): Promise<SavedAction | null>;
+  listByUser(userId: string): Promise<SavedAction[]>;
+  updateStatus(
+    id: string,
+    userId: string,
+    status: ActionStatus
+  ): Promise<SavedAction | null>;
+  delete(id: string, userId: string): Promise<boolean>;
 }
 
 // ===== Unit of Work =====
-// 複数リポジトリ操作をトランザクション境界でまとめるための抽象。
 export interface Repositories {
   sessions: SessionsRepository;
   inputs: InputsRepository;
@@ -122,16 +119,11 @@ export interface Repositories {
 
 export interface UnitOfWork {
   readonly repos: Repositories;
-  /** コールバック内のリポジトリ呼び出しをトランザクションにまとめる */
-  withTransaction<T>(fn: (repos: Repositories) => T): T;
+  withTransaction<T>(fn: (repos: Repositories) => Promise<T>): Promise<T>;
 }
 
-// ===== InputsRepository 補助: EnvironmentInput 型への変換 =====
+// ===== 変換ヘルパ =====
 
-/**
- * レコード群を Phase 1 の EnvironmentInput 型に変換する。
- * 不足している年齢区分があれば throw する (calculator は全区分を要求する)。
- */
 export function recordsToEnvironmentInput(
   records: EnvironmentInputRecord[]
 ): EnvironmentInput {

@@ -9,26 +9,27 @@ import { StyleBarChart } from '@/components/StyleBarChart';
 import { TimelineChart } from '@/components/TimelineChart';
 import { ALL_EMOTIONS, CORE_EMOTIONS, EXTENDED_EMOTIONS, recommend, type EnvironmentInput } from '@/engine';
 import { recordsToEnvironmentInput } from '@/repositories/interface';
-import { getDb } from '@/lib/db';
+import { ensureMigrated, getDb } from '@/lib/db';
 import { getCurrentUserId } from '@/lib/currentUser';
 
 export const dynamic = 'force-dynamic';
 
-export default function ResultPage({ params }: { params: { id: string } }) {
+export default async function ResultPage({ params }: { params: { id: string } }) {
+  await ensureMigrated();
   const userId = getCurrentUserId();
   const { uow } = getDb();
 
-  const session = uow.repos.sessions.getSession(params.id);
+  const session = await uow.repos.sessions.getSession(params.id);
   if (!session) notFound();
   if (session.userId !== userId) redirect('/');
 
-  const result = uow.repos.results.getLatestResult(params.id);
+  const result = await uow.repos.results.getLatestResult(params.id);
   if (!result) {
     // 分析がまだ実行されていない場合は入力ページへ戻す
     redirect(`/session/${params.id}/input`);
   }
 
-  const inputsRows = uow.repos.inputs.getInputsBySession(params.id);
+  const inputsRows = await uow.repos.inputs.getInputsBySession(params.id);
   let environmentInput: EnvironmentInput | null = null;
   try {
     environmentInput = recordsToEnvironmentInput(inputsRows);
@@ -39,9 +40,8 @@ export default function ResultPage({ params }: { params: { id: string } }) {
   const { profile } = result;
 
   // このセッションに対して既に保存済みの提案 (同一 actionText で一致判定)
-  const savedForSession = uow.repos.actions
-    .listByUser(userId)
-    .filter((a) => a.sessionId === params.id);
+  const allActions = await uow.repos.actions.listByUser(userId);
+  const savedForSession = allActions.filter((a) => a.sessionId === params.id);
   const recommendations = recommend(profile);
   const savedMap: Record<string, string> = {};
   for (const rec of recommendations) {

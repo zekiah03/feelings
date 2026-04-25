@@ -1,5 +1,5 @@
 /**
- * ResultsRepository の SQLite 実装
+ * ResultsRepository の Postgres 実装
  */
 
 import { randomUUID } from 'node:crypto';
@@ -10,38 +10,37 @@ import { emotionResults, type EmotionResultRow } from '../db/schema';
 import type { EmotionProfile } from '../engine';
 import type { EmotionResultRecord, ResultsRepository } from './interface';
 
-export class SqliteResultsRepository implements ResultsRepository {
+export class PgResultsRepository implements ResultsRepository {
   constructor(private readonly db: Db) {}
 
-  saveResult(sessionId: string, profile: EmotionProfile): EmotionResultRecord {
-    const row: EmotionResultRow = {
-      id: randomUUID(),
-      sessionId,
-      calculatedAt: new Date(),
-      resultJson: JSON.stringify(profile),
-    };
-    this.db.insert(emotionResults).values(row).run();
+  async saveResult(
+    sessionId: string,
+    profile: EmotionProfile
+  ): Promise<EmotionResultRecord> {
+    const id = randomUUID();
+    const [row] = await this.db
+      .insert(emotionResults)
+      .values({ id, sessionId, resultJson: JSON.stringify(profile) })
+      .returning();
     return rowToRecord(row);
   }
 
-  getLatestResult(sessionId: string): EmotionResultRecord | null {
-    const row = this.db
+  async getLatestResult(sessionId: string): Promise<EmotionResultRecord | null> {
+    const rows = await this.db
       .select()
       .from(emotionResults)
       .where(eq(emotionResults.sessionId, sessionId))
       .orderBy(desc(emotionResults.calculatedAt))
-      .limit(1)
-      .get();
-    return row ? rowToRecord(row) : null;
+      .limit(1);
+    return rows[0] ? rowToRecord(rows[0]) : null;
   }
 
-  getResultHistory(sessionId: string): EmotionResultRecord[] {
-    const rows = this.db
+  async getResultHistory(sessionId: string): Promise<EmotionResultRecord[]> {
+    const rows = await this.db
       .select()
       .from(emotionResults)
       .where(eq(emotionResults.sessionId, sessionId))
-      .orderBy(desc(emotionResults.calculatedAt))
-      .all();
+      .orderBy(desc(emotionResults.calculatedAt));
     return rows.map(rowToRecord);
   }
 }

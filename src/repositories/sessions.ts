@@ -1,5 +1,5 @@
 /**
- * SessionsRepository の SQLite 実装
+ * SessionsRepository の Postgres 実装
  */
 
 import { randomUUID } from 'node:crypto';
@@ -9,44 +9,39 @@ import type { Db } from '../db/client';
 import { sessions, users, type SessionRow } from '../db/schema';
 import type { Session, SessionsRepository } from './interface';
 
-export class SqliteSessionsRepository implements SessionsRepository {
+export class PgSessionsRepository implements SessionsRepository {
   constructor(private readonly db: Db) {}
 
-  createSession(userId: string, label: string): Session {
-    // users 行が無い場合は自動で作る (認証が無い Phase 2 では
-    // 未登録ユーザーの受け入れが必要)
-    this.db
+  async createSession(userId: string, label: string): Promise<Session> {
+    // 未登録ユーザーを受け入れるため、先に users を upsert
+    await this.db
       .insert(users)
       .values({ id: userId })
-      .onConflictDoNothing()
-      .run();
+      .onConflictDoNothing({ target: users.id });
 
-    const row: SessionRow = {
-      id: randomUUID(),
-      userId,
-      label,
-      createdAt: new Date(),
-    };
-    this.db.insert(sessions).values(row).run();
+    const id = randomUUID();
+    const [row] = await this.db
+      .insert(sessions)
+      .values({ id, userId, label })
+      .returning();
     return rowToSession(row);
   }
 
-  getSession(sessionId: string): Session | null {
-    const row = this.db
+  async getSession(sessionId: string): Promise<Session | null> {
+    const rows = await this.db
       .select()
       .from(sessions)
       .where(eq(sessions.id, sessionId))
-      .get();
-    return row ? rowToSession(row) : null;
+      .limit(1);
+    return rows[0] ? rowToSession(rows[0]) : null;
   }
 
-  listSessions(userId: string): Session[] {
-    const rows = this.db
+  async listSessions(userId: string): Promise<Session[]> {
+    const rows = await this.db
       .select()
       .from(sessions)
       .where(eq(sessions.userId, userId))
-      .orderBy(asc(sessions.createdAt))
-      .all();
+      .orderBy(asc(sessions.createdAt));
     return rows.map(rowToSession);
   }
 }

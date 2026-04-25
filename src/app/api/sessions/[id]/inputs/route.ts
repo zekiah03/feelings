@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { getDb } from '@/lib/db';
+import { ensureMigrated, getDb } from '@/lib/db';
 import { getCurrentUserId } from '@/lib/currentUser';
 import { upsertInputRequestSchema } from '@/lib/validation';
 
@@ -8,24 +8,32 @@ export const runtime = 'nodejs';
 
 type Ctx = { params: { id: string } };
 
-function requireOwnedSession(sessionId: string) {
+async function requireOwnedSession(sessionId: string) {
   const userId = getCurrentUserId();
-  const session = getDb().uow.repos.sessions.getSession(sessionId);
-  if (!session) return { error: NextResponse.json({ error: 'Session not found' }, { status: 404 }) } as const;
-  if (session.userId !== userId) return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) } as const;
+  const session = await getDb().uow.repos.sessions.getSession(sessionId);
+  if (!session) {
+    return {
+      error: NextResponse.json({ error: 'Session not found' }, { status: 404 }),
+    } as const;
+  }
+  if (session.userId !== userId) {
+    return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) } as const;
+  }
   return { session } as const;
 }
 
 export async function GET(_req: Request, { params }: Ctx) {
-  const gate = requireOwnedSession(params.id);
+  await ensureMigrated();
+  const gate = await requireOwnedSession(params.id);
   if ('error' in gate) return gate.error;
 
-  const inputs = getDb().uow.repos.inputs.getInputsBySession(params.id);
+  const inputs = await getDb().uow.repos.inputs.getInputsBySession(params.id);
   return NextResponse.json({ inputs });
 }
 
 export async function POST(request: Request, { params }: Ctx) {
-  const gate = requireOwnedSession(params.id);
+  await ensureMigrated();
+  const gate = await requireOwnedSession(params.id);
   if ('error' in gate) return gate.error;
 
   const body = await request.json().catch(() => null);
@@ -37,7 +45,7 @@ export async function POST(request: Request, { params }: Ctx) {
     );
   }
 
-  const saved = getDb().uow.repos.inputs.upsertInput(
+  const saved = await getDb().uow.repos.inputs.upsertInput(
     params.id,
     parsed.data.ageRange,
     parsed.data.data

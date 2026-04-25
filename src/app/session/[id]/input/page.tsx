@@ -1,22 +1,23 @@
 import { notFound, redirect } from 'next/navigation';
 
 import { InputFormShell } from '@/components/InputFormShell';
-import { getDb } from '@/lib/db';
+import { ensureMigrated, getDb } from '@/lib/db';
 import { getCurrentUserId } from '@/lib/currentUser';
 import type { AgeRange } from '@/lib/formStore';
 import type { InputData } from '@/lib/validation';
 
 export const dynamic = 'force-dynamic';
 
-export default function InputPage({ params }: { params: { id: string } }) {
+export default async function InputPage({ params }: { params: { id: string } }) {
+  await ensureMigrated();
   const userId = getCurrentUserId();
   const { uow } = getDb();
 
-  const session = uow.repos.sessions.getSession(params.id);
+  const session = await uow.repos.sessions.getSession(params.id);
   if (!session) notFound();
   if (session.userId !== userId) redirect('/');
 
-  const existing = uow.repos.inputs.getInputsBySession(params.id);
+  const existing = await uow.repos.inputs.getInputsBySession(params.id);
   const initialInputs: Partial<Record<AgeRange, InputData>> = {};
   for (const row of existing) {
     initialInputs[row.ageRange] = {
