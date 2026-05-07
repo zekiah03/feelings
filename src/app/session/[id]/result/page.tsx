@@ -7,6 +7,7 @@ import { EmotionScoreCard } from '@/components/EmotionScoreCard';
 import { SimulatorV2 } from '@/components/Simulator_v2';
 import { StyleBarChart } from '@/components/StyleBarChart';
 import { TimelineChart } from '@/components/TimelineChart';
+import { TwinContributor } from '@/components/TwinContributor';
 import { ALL_EMOTIONS, CORE_EMOTIONS, EXTENDED_EMOTIONS, recommend, type EnvironmentInput } from '@/engine';
 import { recordsToEnvironmentInput } from '@/repositories/interface';
 import { ensureMigrated, getDb } from '@/lib/db';
@@ -147,6 +148,12 @@ export default async function ResultPage({ params }: { params: { id: string } })
           <SimulatorV2 baseline={environmentInput} baselineProfile={profile} />
         </Section>
       )}
+
+      {/* Digital Twin contribution */}
+      <TwinContributor
+        appId="feelings"
+        data={{ emotions: profile.emotions as unknown as Record<string, unknown> }}
+      />
     </div>
   );
 }
