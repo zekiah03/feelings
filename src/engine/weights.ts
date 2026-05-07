@@ -58,6 +58,7 @@ export const THRESHOLDS = {
   controlHigh: 50,
   socialSuccessHigh: 50,
   stressEventsFull: 5,
+  successEventsFull: 5,
 } as const;
 
 // ===== 因果ルール =====
@@ -125,6 +126,44 @@ export const FACTOR_RULES: FactorRule[] = [
     effects: [
       { target: { kind: 'emotion', emotion: 'anger', layer: 'sensitivity' }, delta: 8 },
       { target: { kind: 'expression', key: 'suppression' }, delta: 10 },
+    ],
+  },
+
+  // ===== 第二版追加ルール (theory.md §4.3) =====
+
+  // R1.8: 所属感低 × 思春期以降。R1.6 の効果に加えて思春期/前期成人期だけ追加で乗る。
+  // peer 関係性が同一性形成に強く効く時期 (Erikson 1968) — α_b の単調減少への補正。
+  {
+    id: 'low_belonging_adolescent_amplifier',
+    label: '思春期以降の所属感の低さ',
+    strength: (i) => lowThan(THRESHOLDS.belongingLow)(i.school.belonging),
+    effects: [
+      { target: { kind: 'emotion', emotion: 'sadness', layer: 'intensity' }, delta: 2 },
+      { target: { kind: 'emotion', emotion: 'shame', layer: 'intensity' }, delta: 2 },
+    ],
+    ageBrackets: ['11-15', '16-20'],
+  },
+
+  // R1.9: 成功体験の累積。喜びの強度+感度を引き上げる (hedonic anchor)。
+  // 現状 R1.4 (社会的成功) のみで joy への経路が薄かった非対称を緩和する。
+  {
+    id: 'cumulative_success',
+    label: '成功体験の累積',
+    strength: (i) => Math.max(0, Math.min(1, i.events.successEvents / THRESHOLDS.successEventsFull)),
+    effects: [
+      { target: { kind: 'emotion', emotion: 'joy', layer: 'intensity' }, delta: 6 },
+      { target: { kind: 'emotion', emotion: 'joy', layer: 'sensitivity' }, delta: 4 },
+    ],
+  },
+
+  // R1.10: 心理的支配 → 罪悪感誘導 (Barber 1996)。R1.7 と同じ trigger だが、
+  //        guilt 強度に効く別経路として独立させる (説明可能性のため)。
+  {
+    id: 'high_control_guilt_induction',
+    label: '心理的支配による罪悪感の内面化',
+    strength: (i) => higherThan(THRESHOLDS.controlHigh)(i.family.control),
+    effects: [
+      { target: { kind: 'emotion', emotion: 'guilt', layer: 'intensity' }, delta: 8 },
     ],
   },
 ];

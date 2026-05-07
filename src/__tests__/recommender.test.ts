@@ -11,8 +11,11 @@ function makeProfile(
     fear: { intensity?: number; sensitivity?: number };
     sadness: { duration?: number };
     numbness: { intensity?: number };
+    guilt: { intensity?: number };
+    shame: { intensity?: number };
     suppression: number;
     explosiveness: number;
+    empathy: number;
   }>
 ): EmotionProfile {
   const base = calculate(neutralInput());
@@ -26,8 +29,11 @@ function makeProfile(
   if (overrides.fear?.sensitivity !== undefined) cloned.emotions.fear.sensitivity = overrides.fear.sensitivity;
   if (overrides.sadness?.duration !== undefined) cloned.emotions.sadness.duration = overrides.sadness.duration;
   if (overrides.numbness?.intensity !== undefined) cloned.emotions.numbness.intensity = overrides.numbness.intensity;
+  if (overrides.guilt?.intensity !== undefined) cloned.emotions.guilt.intensity = overrides.guilt.intensity;
+  if (overrides.shame?.intensity !== undefined) cloned.emotions.shame.intensity = overrides.shame.intensity;
   if (overrides.suppression !== undefined) cloned.expression.suppression = overrides.suppression;
   if (overrides.explosiveness !== undefined) cloned.expression.explosiveness = overrides.explosiveness;
+  if (overrides.empathy !== undefined) cloned.expression.empathy = overrides.empathy;
   return cloned;
 }
 
@@ -55,16 +61,45 @@ describe('recommend()', () => {
       ['high_suppression', makeProfile({ suppression: 85 })],
       ['high_explosiveness', makeProfile({ explosiveness: 85 })],
       ['long_sadness_duration', makeProfile({ sadness: { duration: 85 } })],
+      ['high_guilt', makeProfile({ guilt: { intensity: 85 } })],
+      ['high_shame', makeProfile({ shame: { intensity: 80 } })],
+      ['low_empathy', makeProfile({ empathy: 10 })],
+      [
+        'anger_with_suppression',
+        makeProfile({ anger: { intensity: 90 }, suppression: 90 }),
+      ],
     ];
     for (const [ruleId, profile] of cases) {
       const recs = recommend(profile, { perCategoryLimit: 10, limit: 20 });
       expect(recs.some((r) => r.ruleId === ruleId)).toBe(true);
     }
-    // 10 ルール全部をカバー (逆算的チェック)
+    // 全ルールがカバーされている (逆算的チェック)
     const coveredIds = new Set(cases.map(([id]) => id));
     for (const rule of ACTION_RULES) {
       expect(coveredIds.has(rule.id)).toBe(true);
     }
+  });
+
+  test('R2.14 anger_with_suppression は片方だけでは発火しない (compound rule)', () => {
+    const angerOnly = makeProfile({ anger: { intensity: 90 } });
+    const suppressionOnly = makeProfile({ suppression: 90 });
+    const both = makeProfile({ anger: { intensity: 90 }, suppression: 90 });
+
+    expect(
+      recommend(angerOnly, { perCategoryLimit: 10, limit: 20 }).some(
+        (r) => r.ruleId === 'anger_with_suppression'
+      )
+    ).toBe(false);
+    expect(
+      recommend(suppressionOnly, { perCategoryLimit: 10, limit: 20 }).some(
+        (r) => r.ruleId === 'anger_with_suppression'
+      )
+    ).toBe(false);
+    expect(
+      recommend(both, { perCategoryLimit: 10, limit: 20 }).some(
+        (r) => r.ruleId === 'anger_with_suppression'
+      )
+    ).toBe(true);
   });
 
   test('同一カテゴリは perCategoryLimit で絞られる', () => {

@@ -134,6 +134,47 @@ describe('calculate()', () => {
     }
   });
 
+  test('R1.8: 思春期所属感 amplifier は 11-15 / 16-20 でのみ追加効果が出る', () => {
+    // 6-10 だけ belonging を下げる → R1.8 は発火しないので追加効果なし
+    const earlyOnly = neutralInput();
+    earlyOnly['6-10'].school.belonging = 0;
+
+    // 11-15 だけ belonging を下げる → R1.8 が追加で発火
+    const teenOnly = neutralInput();
+    teenOnly['11-15'].school.belonging = 0;
+
+    const earlyProfile = calculate(earlyOnly);
+    const teenProfile = calculate(teenOnly);
+
+    // 6-10 (α=1.3) と 11-15 (α=1.1) を比べる: α だけなら 6-10 の方が大きい影響のはず。
+    // 11-15 の効果が 6-10 を上回るか同等になっていれば、思春期 amplifier が効いている証拠。
+    const earlySadnessDelta = earlyProfile.emotions.sadness.intensity - EMOTION_BASELINE.intensity;
+    const teenSadnessDelta = teenProfile.emotions.sadness.intensity - EMOTION_BASELINE.intensity;
+    expect(teenSadnessDelta).toBeGreaterThanOrEqual(earlySadnessDelta);
+  });
+
+  test('R1.9: 成功体験の累積で喜び強度・感度が上昇する', () => {
+    const input = neutralInput();
+    for (const b of ['0-5', '6-10', '11-15', '16-20'] as const) {
+      input[b].events.successEvents = 10;
+    }
+    const profile = calculate(input);
+    expect(profile.emotions.joy.intensity).toBeGreaterThan(EMOTION_BASELINE.intensity);
+    expect(profile.emotions.joy.sensitivity).toBeGreaterThan(EMOTION_BASELINE.sensitivity);
+  });
+
+  test('R1.10: 支配度高で罪悪感の強度が上昇する', () => {
+    const input = neutralInput();
+    for (const b of ['0-5', '6-10', '11-15', '16-20'] as const) {
+      input[b].family.control = 100;
+    }
+    const profile = calculate(input);
+    expect(profile.emotions.guilt.intensity).toBeGreaterThan(EMOTION_BASELINE.intensity);
+
+    const topIds = profile.emotions.guilt.topFactors.map((f) => f.factor);
+    expect(topIds).toContain('high_control_guilt_induction');
+  });
+
   test('純粋関数 (同入力は同出力 / 入力を変更しない)', () => {
     const input = neutralInput();
     input['11-15'].events.stressEvents = 3;

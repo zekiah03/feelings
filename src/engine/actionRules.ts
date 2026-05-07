@@ -201,4 +201,77 @@ export const ACTION_RULES: ActionRule[] = [
       };
     },
   },
+
+  // ===== 第二版追加ルール (theory.md §5.4) =====
+
+  // R2.11: 高罪悪感 → 言語化 + 第三者視点での読み返し (ACT defusion)
+  {
+    id: 'high_guilt',
+    category: '感情調整',
+    text: '頭の中の自己批判を紙に書き出して、他人の言葉として読む: 罪悪感の慢性化を切る defusion 練習。',
+    difficulty: '低',
+    evaluate: (p) => {
+      const v = p.emotions.guilt.intensity;
+      const score = excessOver(v, 65);
+      return {
+        matches: score > 0,
+        score,
+        basis: `罪悪感の強度が ${fmt(v)} (閾値 65)`,
+      };
+    },
+  },
+
+  // R2.12: 高恥 → 自己慈悲 (Neff 2003)
+  {
+    id: 'high_shame',
+    category: '感情調整',
+    text: '自己慈悲のフレーズ (「これはつらい状況だ」「自分だけじゃない」「自分に優しく」) を声に出す: 恥は自己批判より共感的応答に弱い。',
+    difficulty: '中',
+    evaluate: (p) => {
+      const v = p.emotions.shame.intensity;
+      const score = excessOver(v, 60);
+      return {
+        matches: score > 0,
+        score,
+        basis: `恥の強度が ${fmt(v)} (閾値 60)`,
+      };
+    },
+  },
+
+  // R2.13: 低共感 → 視点取得練習 (Bateman & Fonagy mentalization)
+  {
+    id: 'low_empathy',
+    category: '習慣',
+    text: '一日一回、身近な人について「あの人は今どう感じているか」を3行書く: メンタライゼーション能力は訓練できる。',
+    difficulty: '低',
+    evaluate: (p) => {
+      const v = p.expression.empathy;
+      const score = shortfallUnder(v, 30);
+      return {
+        matches: score > 0,
+        score,
+        basis: `共感力が ${fmt(v)} (閾値 30)`,
+      };
+    },
+  },
+
+  // R2.14: 高怒り強度 × 高抑制 の組合せ → 構造化された境界線練習
+  // (Pennebaker inhibition theory: 表出抑制と高怒りの組合せは身体化リスク高)
+  {
+    id: 'anger_with_suppression',
+    category: '感情調整',
+    text: '小さな「No」を週1回、安全な相手に言う練習をする: 高い怒りと高い抑制の同時存在は身体化のリスクが高い。',
+    difficulty: '中',
+    evaluate: (p) => {
+      const angerExcess = excessOver(p.emotions.anger.intensity, 70);
+      const suppressionExcess = excessOver(p.expression.suppression, 70);
+      // 両方が一定以上のときだけ発火 (compound rule)
+      const score = Math.min(angerExcess, suppressionExcess);
+      return {
+        matches: score > 0,
+        score,
+        basis: `怒り強度 ${fmt(p.emotions.anger.intensity)} × 感情抑制 ${fmt(p.expression.suppression)} (両者が閾値 70 を超過)`,
+      };
+    },
+  },
 ];

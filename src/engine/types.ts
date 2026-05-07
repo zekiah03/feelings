@@ -118,4 +118,9 @@ export interface FactorRule {
   /** 年齢区分の入力から 0-1 の発火強度を返す純粋関数 */
   strength: (input: AgeBracketInput) => number;
   effects: RuleEffect[];
+  /**
+   * このルールが適用される年齢区分 (省略時は全区分)。
+   * 思春期固有の効果 (theory.md §4.3 R1.8) などに使う。
+   */
+  ageBrackets?: AgeBracket[];
 }

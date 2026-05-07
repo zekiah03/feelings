@@ -67,6 +67,8 @@ export function calculate(input: EnvironmentInput): EmotionProfile {
     const ageCoef = AGE_COEFFICIENTS[bracket];
 
     for (const rule of FACTOR_RULES) {
+      // 適用区分が限定されているルールは該当外をスキップ (theory.md §4.3 R1.8)
+      if (rule.ageBrackets && !rule.ageBrackets.includes(bracket)) continue;
       const strength = rule.strength(bracketInput);
       if (strength <= 0) continue;
 
